@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Animal Arrival & Sales Tracker</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f8f8f8;
+    margin: 0;
+    padding: 1rem;
+  }
+  h1, h2 {
+    color: #8B0000;
+    text-align: center;
+  }
+  section {
+    max-width: 800px;
+    margin: 1rem auto;
+    background: #fff;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  label {
+    display: block;
+    margin-top: 0.5rem;
+    font-weight: bold;
+  }
+  input, button, select {
+    padding: 0.5rem;
+    width: 100%;
+    margin-top: 0.25rem;
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.5rem;
+  }
+  th {
+    background-color: #f0f0f0;
+  }
+  .button {
+    background-color: #8B0000;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .button:hover {
+    background-color: #a40000;
+  }
+  .hidden { display: none; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+      position: absolute;
+      top: 0; left: 0;
+      width: 5in;
+      height: 5in;
+      box-sizing: border-box;
+      padding: 0.5in;
+      background: #fff;
+      border: 1px solid #000;
+    }
+    #printArea button { display: none; }
+    @page {
+      size: 5in 5in;
+      margin: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<h1>Golden Chicken and Mutton Center</h1>
+
+<section>
+  <h2>Add Animal Arrival</h2>
+  <label>Date
+    <input type="date" id="arrivalDate">
+  </label>
+  <label>Animal Type
+    <input type="text" id="arrivalType" placeholder="e.g. Goat, Sheep">
+  </label>
+  <label>Color
+    <input type="text" id="arrivalColor" placeholder="e.g. White">
+  </label>
+  <label>Quantity
+    <input type="number" id="arrivalQuantity">
+  </label>
+  <div id="arrivalPrices"></div>
+  <button class="button" onclick="prepareArrivalPrices()">Next: Enter Prices</button>
+  <button class="button hidden" id="saveArrivalBtn" onclick="saveArrival()">Save Arrival</button>
+</section>
+
+<section>
+  <h2>Record Sales / Cut-off</h2>
+  <label>Date
+    <input type="date" id="saleDate">
+  </label>
+  <label>Animal Type
+    <input type="text" id="saleType">
+  </label>
+  <label>Color
+    <input type="text" id="saleColor">
+  </label>
+  <label>Quantity Sold
+    <input type="number" id="saleQuantity">
+  </label>
+  <button class="button" onclick="saveSale()">Save Sale</button>
+</section>
+
+<section>
+  <h2>View & Print Stock</h2>
+  <label>Select Date
+    <input type="date" id="viewDate" onchange="displayStock()">
+  </label>
+  <div id="stockTableContainer"></div>
+  <button class="button" onclick="printReport()">Print 5x5 Bill</button>
+</section>
+
+<div id="printArea" style="display:none;">
+  <h2 style="text-align:center;">Arrival & Sales Bill</h2>
+  <p id="reportDate" style="text-align:center;"></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Animal</th>
+        <th>Color</th>
+        <th>Arrived</th>
+        <th>Sold</th>
+        <th>Left</th>
+        <th>Price (₹)</th>
+        <th>Total Price (₹)</th>
+
+      </tr>
+    </thead>
+    <tbody id="printTableBody"></tbody>
+  </table>
+  <p id="totalArrivedPrice" style="text-align:right; font-weight: bold;"></p>
+  <p id="totalSoldPrice" style="text-align:right; font-weight: bold;"></p>
+  <p style="text-align:center;">Thank you!</p>
+</div>
+
+<script>
+  function getKey(date) { return 'data_' + date; }
+
+  function loadData(date) {
+    return JSON.parse(localStorage.getItem(getKey(date))) || { arrivals: [], sales: [] };
+  }
+
+  function saveData(date, data) {
+    localStorage.setItem(getKey(date), JSON.stringify(data));
+  }
+
+  function prepareArrivalPrices() {
+    const qty = parseInt(document.getElementById('arrivalQuantity').value);
+    if (!qty || qty < 1) {
+      alert('Enter valid quantity');
+      return;
+    }
+    const div = document.getElementById('arrivalPrices');
+    div.innerHTML = '';
+    for (let i = 1; i <= qty; i++) {
+      div.innerHTML += `
+        <label>Price for Animal ${i}
+          <input type="number" id="price_${i}" required>
+        </label>
+      `;
+    }
+    document.getElementById('saveArrivalBtn').classList.remove('hidden');
+  }
+
+  function saveArrival() {
+    const date = document.getElementById('arrivalDate').value;
+    const type = document.getElementById('arrivalType').value.trim();
+    const color = document.getElementById('arrivalColor').value.trim();
+    const qty = parseInt(document.getElementById('arrivalQuantity').value);
+    if (!date || !type || !color || qty < 1) {
+      alert('Fill all fields');
+      return;
+    }
+
+    const prices = [];
+    for (let i = 1; i <= qty; i++) {
+      const price = parseFloat(document.getElementById(`price_${i}`).value);
+      if (isNaN(price) || price <= 0) {
+        alert('Enter valid prices');
+        return;
+      }
+      prices.push(price);
+    }
+
+    const data = loadData(date);
+    prices.forEach(price => {
+      data.arrivals.push({ type, color, price });
+    });
+    saveData(date, data);
+    alert('Arrival saved!');
+    location.reload();
+  }
+
+  function saveSale() {
+    const date = document.getElementById('saleDate').value;
+    const type = document.getElementById('saleType').value.trim();
+    const color = document.getElementById('saleColor').value.trim();
+    const qty = parseInt(document.getElementById('saleQuantity').value);
+    if (!date || !type || !color || qty < 1) {
+      alert('Fill all fields');
+      return;
+    }
+
+    const data = loadData(date);
+    data.sales.push({ type, color, qty });
+    saveData(date, data);
+    alert('Sale recorded!');
+    location.reload();
+  }
+
+  function displayStock() {
+    const date = document.getElementById('viewDate').value;
+    if (!date) return;
+
+    const data = loadData(date);
+    if (data.arrivals.length === 0) {
+      document.getElementById('stockTableContainer').innerHTML = '<p>No arrivals for this date.</p>';
+      return;
+    }
+
+    const summary = summarizeData(data);
+    let table = `
+      <table>
+        <thead>
+          <tr>
+            <th>Animal</th>
+            <th>Color</th>
+            <th>Arrived</th>
+            <th>Sold</th>
+            <th>Left</th>
+            <th>Avg. Price (₹)</th>
+            <th>Total Price (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    summary.forEach(r => {
+      table += `
+        <tr>
+          <td>${r.type}</td>
+          <td>${r.color}</td>
+          <td>${r.arrived}</td>
+          <td>${r.sold}</td>
+          <td>${r.left}</td>
+          <td>${r.avgPrice.toFixed(2)}</td>
+          <td>${r.totalPriceArrived.toFixed(2)}</td>
+
+        </tr>
+      `;
+    });
+    table += '</tbody></table>';
+    document.getElementById('stockTableContainer').innerHTML = table;
+  }
+
+  function summarizeData(data) {
+  const map = new Map();
+  data.arrivals.forEach(a => {
+    const key = a.type + '-' + a.color;
+    if (!map.has(key)) map.set(key, { type: a.type, color: a.color, arrived: 0, totalPriceArrived: 0, sold: 0, totalPriceSold: 0 });
+    const item = map.get(key);
+    item.arrived += 1;
+    item.totalPriceArrived += a.price;
+  });
+  data.sales.forEach(s => {
+    const key = s.type + '-' + s.color;
+    if (!map.has(key)) map.set(key, { type: s.type, color: s.color, arrived: 0, totalPriceArrived: 0, sold: 0, totalPriceSold: 0 });
+    const item = map.get(key);
+    item.sold = (item.sold || 0) + s.qty;
+    // For calculating total sold price, we need to consider the price of the *arrived* animals that were sold.
+    // This is an approximation using the average price of arrived animals for that type/color.
+    // A more robust solution would track individual animals and their prices.
+    const relevantArrivals = data.arrivals.filter(a => a.type === s.type && a.color === s.color);
+    const avgPriceOfArrived = relevantArrivals.length > 0 ? relevantArrivals.reduce((sum, current) => sum + current.price, 0) / relevantArrivals.length : 0;
+    item.totalPriceSold += avgPriceOfArrived * s.qty;
+  });
+
+  const result = [];
+  map.forEach(item => {
+    const avgPrice = item.arrived > 0 ? item.totalPriceArrived / item.arrived : 0;
+    result.push({
+      type: item.type,
+      color: item.color,
+      arrived: item.arrived,
+      sold: item.sold || 0,
+      left: item.arrived - (item.sold || 0),
+      avgPrice,
+      totalPriceArrived: item.totalPriceArrived,
+      totalPriceSold: item.totalPriceSold
+    });
+  });
+  return result;
+}
+
+
+  function printReport() {
+    const date = document.getElementById('viewDate').value;
+    if (!date) {
+      alert('Select date');
+      return;
+    }
+
+    const data = loadData(date);
+    const summary = summarizeData(data);
+    if (summary.length === 0) {
+      alert('No data to print');
+      return;
+    }
+
+    document.getElementById('reportDate').innerText = 'Date: ' + date;
+    const tbody = document.getElementById('printTableBody');
+    tbody.innerHTML = '';
+    
+    let grandTotalArrivedPrice = 0;
+    let grandTotalSoldPrice = 0;
+
+    summary.forEach(r => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+      <td>${r.type}</td>
+      <td>${r.color}</td>
+      <td>${r.arrived}</td>
+      <td>${r.sold}</td>
+      <td>${r.left}</td>
+      <td>${r.avgPrice.toFixed(2)}</td>
+      <td>${r.totalPriceArrived.toFixed(2)}</td>
+    `;
+      tbody.appendChild(row);
+      grandTotalArrivedPrice += r.totalPriceArrived;
+      grandTotalSoldPrice += r.totalPriceSold;
+    });
+
+    document.getElementById('totalArrivedPrice').innerText = `Total Arrived Price: ₹${grandTotalArrivedPrice.toFixed(2)}`;
+    document.getElementById('totalSoldPrice').innerText = `Total Sold Price: ₹${grandTotalSoldPrice.toFixed(2)}`;
+
+
+    document.getElementById('printArea').style.display = 'block';
+    window.print();
+    document.getElementById('printArea').style.display = 'none';
+  }
+</script>
+</body>
+</html>
